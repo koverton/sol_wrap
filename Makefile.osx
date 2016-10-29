@@ -1,0 +1,75 @@
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       VARIABLES
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+LIBNAME = sol_wrap
+SONAME  = lib$(LIBNAME).dylib
+
+# Create an environment var SOLCLIENT_DIR pointing to the root 
+# of the dir created by untarring the CCSMP tgz bundle. 
+SOLCLIENT_DIR ?= ./solclient
+
+INCDIRS = $(SOLCLIENT_DIR)/include include /usr/local/include
+SYMS    = PROVIDE_LOG_UTILITIES SOLCLIENT_CONST_PROPERTIES
+DEBUG   =
+
+ifdef DEBUG
+	CONFIG = Debug
+else
+	CONFIG = Release
+endif
+
+LIBDIR = osx/$(CONFIG)
+LIBDIRS = $(SOLCLIENT_DIR)/lib /usr/local/lib $(LIBDIR)
+LIBS    = solclient pthread
+
+
+CXXFLAGS= $(foreach d, $(INCDIRS), -I$d) $(foreach s, $(SYMS), -D$s) -arch x86_64 -pipe -fno-common -fno-strict-aliasing -fstack-protector $(DEBUG)
+LDFLAGS = $(foreach d, $(LIBDIRS), -L$d) $(foreach l, $(LIBS), -l$l) -dynamiclib -single_module -arch x86_64 -undefined dynamic_lookup
+
+SOL_SRC = $(wildcard src/*.cpp) 
+
+
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       TOP LEVEL TARGETS
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+all: lib samples
+
+lib: $(LIBDIR)/$(SONAME)
+
+samples: direct_test persistent_test cache_test bulk_subscribe_test c_client_test
+
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       BUILD TARGETS
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+$(LIBDIR)/$(SONAME): $(SOL_SRC)
+	mkdir -p $(LIBDIR)
+	$(CXX) -shared $(CXXFLAGS) $(LDFLAGS) -o $(LIBDIR)/$(SONAME) $(SOL_SRC) 
+
+direct_test: tests/direct_test.cpp $(LIBDIR)/$(SONAME)
+	$(CXX) $(CXXFLAGS) -L$(LIBDIR) -lsol_wrap -o direct_test tests/direct_test.cpp
+
+persistent_test: tests/persistent_test.cpp $(LIBDIR)/$(SONAME)
+	$(CXX) $(CXXFLAGS) -L$(LIBDIR) -lsol_wrap -o persistent_test tests/persistent_test.cpp
+
+c_client_test: tests/c_client_test.c $(LIBDIR)/$(SONAME)
+	$(CC) $(CXXFLAGS) -L$(LIBDIR) -lsol_wrap -o c_client_test tests/c_client_test.c
+
+bulk_subscribe_test: tests/bulk_subscribe_test.cpp $(LIBDIR)/$(SONAME)
+	$(CXX) $(CXXFLAGS) -L$(LIBDIR) -lsol_wrap -o bulk_subscribe_test tests/bulk_subscribe_test.cpp
+
+cache_test: tests/cache_test.cpp $(LIBDIR)/$(SONAME)
+	$(CXX) $(CXXFLAGS) -L$(LIBDIR) -lsol_wrap -o cache_test tests/cache_test.cpp
+
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       CLEAN
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+clean:
+	$(RM) -rf $(LIBDIR)/$(SONAME) $(SOLCLIENT_DIR)/lib/$(SONAME) *_test *.dSYM $(LIBDIR)

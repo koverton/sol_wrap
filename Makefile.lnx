@@ -1,0 +1,85 @@
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       VARIABLES
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+LIBNAME = sol_wrap
+SONAME  = lib$(LIBNAME).so
+
+# Create an environment var SOLCLIENT_DIR pointing to the root 
+# of the dir created by untarring the CCSMP tgz bundle. 
+SOLCLIENT_DIR ?= ./solclient
+
+# Do not build/link Python support unless requested
+ifeq ($(PYTHON_SUPPORT), 1)
+	PYINC=/usr/include/python2.7
+	PYLIB=python2.7
+	PYDEF=PYTHON_SUPPORT
+else
+	PYINC=
+	PYLIB=
+	PYDEF=
+endif
+
+INCDIRS = $(SOLCLIENT_DIR)/include include $(PYINC)
+SYMS    = PROVIDE_LOG_UTILITIES SOLCLIENT_CONST_PROPERTIES $(PYDEF) _REENTRANT _LINUX_X86_64
+DEBUG   = -g
+
+LIBDIRS = $(SOLCLIENT_DIR)/lib .
+LIBS    = solclient pthread $(PYLIB)
+
+
+
+CXXFLAGS= $(foreach d, $(INCDIRS), -I$d) $(foreach s, $(SYMS), -D$s) -m64 $(DEBUG)
+# -m64 -Woverloaded-virtual -fmessage-length=0
+LDFLAGS = $(foreach d, $(LIBDIRS), -L$d) $(foreach l, $(LIBS), -l$l)
+
+SOL_SRC = $(wildcard src/*.cpp) 
+
+
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       TOP LEVEL TARGETS
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+all: lib samples
+	( cd gosol; $(MAKE); cd .. )
+	( cd pysol; $(MAKE); cd .. )
+
+lib: $(SONAME)
+
+samples: direct_test persistent_test cache_test bulk_subscribe_test c_client_test
+
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       BUILD TARGETS
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+$(SONAME): $(SOL_SRC)
+	$(CXX) -shared $(CXXFLAGS) $(LDFLAGS) -fPIC -o $(SONAME) $(SOL_SRC) 
+	cp $(SONAME) $(SOLCLIENT_DIR)/lib
+
+direct_test: tests/direct_test.cpp $(SONAME)
+	$(CXX) $(CXXFLAGS) -L. -lsol_wrap -o direct_test tests/direct_test.cpp
+
+persistent_test: tests/persistent_test.cpp $(SONAME)
+	$(CXX) $(CXXFLAGS) -L. -lsol_wrap -o persistent_test tests/persistent_test.cpp
+
+c_client_test: tests/c_client_test.c $(SONAME)
+	$(CC) $(CXXFLAGS) -L. -lsol_wrap -o c_client_test tests/c_client_test.c
+
+bulk_subscribe_test: tests/bulk_subscribe_test.cpp $(SONAME)
+	$(CXX) $(CXXFLAGS) -L. -lsol_wrap -o bulk_subscribe_test tests/bulk_subscribe_test.cpp
+
+cache_test: tests/cache_test.cpp $(SONAME)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -lsol_wrap -o cache_test tests/cache_test.cpp
+
+
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+#                       CLEAN
+# - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = - =  - = 
+
+clean:
+	$(RM) -rf $(SONAME) $(SOLCLIENT_DIR)/lib/$(SONAME) *_test
+	( cd gosol; $(MAKE) clean; cd .. )
+	( cd pysol; $(MAKE) clean; cd .. )

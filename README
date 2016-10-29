@@ -1,0 +1,49 @@
+BASIC BASICS
+- gosol: GO wrapper library; depends upon the C-wrapper in this directory
+
+To play with it, cd gosol/; ./run_tests.sh
+
+- pysol: Python wrapper library; also depends upon the C-wrapper in this directory is built with ENV-var PYTHON_SUPPORT=1 exported
+
+To play with it, cd pysol/; ./run_tests.sh
+
+
+PREREQUISITES
+
+- Linux (I built this under 64-bit CENTOS 7; can't vouch for anything else.)
+
+- Solace CCSMP libraries installed locally (scripts are setup to look for the solclient dir in this directory, but you can install it anywhere and reference it via ENV-var SOLCLIENT_DIR)
+
+- Solace appliances with pysol_test VPN provisioned; you can either run against the existing VPN on demo-TR or create it locally by sourcing the included 'solace_configs/vpn_create.cli' script at a Solace appliance CLI prompt
+
+- OPTIONAL: SolCache instance running in the pysol_test VPN; you can instantiate it by installing solcache and running an instance with the associated solcache/config/pysolcache_inst1.config that is configured to phone home to our public demo-TR appliance.
+
+
+BUILD
+The following will build the C wrapper API as well as the dependent Python and GO wrapper APIs:
+
+	. ./env.sh
+	make all
+
+
+RUNNING TESTS
+Each test takes a configuration file that defines the usual arguments: host+port, VPN, username, password, etc. Look in demotr.properties for an example running against our public demo-TR appliance.
+
+Make sure you have sourced the 'env.sh' script which sets up PATH and LD_LIBRARY_PATH variables to find the Solace libraries as well as the sol_wrap library.
+
+direct_test:
+basic Solace client validating direct messaging. Solace message broker IP and messaging-VPN are configurable from a properties file (demotr.properties example is provided).
+
+persistent_test:
+Solace client validating persistent messaging; you must have the appropriate queue provisioned and mapped to the appropriate topic for it to work.
+
+cache_test:
+basic SolCache client validation; you must have the appropriate solcache-instance provisioned w/appropriate remote-topics configured. solcache is provided in this bundle, you can start it by executing the `run_solcache_inst.sh' script in the background which expects solcache installed in this directory, with solcache/config/pysolcache_inst1.config copied into place.
+
+
+LIBRARY
+This includes a simplified messaging client library wrapper around CCSMP ('libsol_wrap.so') which is then exposed to the Python runtime via the pysol module. If you like the C-wrapper, by all means use it wherever you find appropriate, just bear in mind that it is offered 'As Is' with no support.
+
+Lifecycle: The library is responsible for the message returned to you in callbacks. On the plus side, that's one lifecycle you don't have to worry about; on the other hand, that means they disappear from your scope as soon as your callback returns. So any data you want to keep around, you are responsible for copying out of the pysol message into your own objects.
+
+
